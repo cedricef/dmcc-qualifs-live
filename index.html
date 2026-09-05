@@ -512,6 +512,86 @@
     0%   { box-shadow: 0 0 0 2px var(--accent-soft); }
     100% { box-shadow: 0 0 0 0 transparent; }
   }
+
+  /* Bandeau "pilote en piste" — feuille "qualifs" du sheet dmcc info live */
+  .ontrack-banner{
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    background: linear-gradient(90deg, var(--accent-soft), transparent 85%);
+    border: 1px solid var(--accent-deep);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 18px;
+    margin: 0 0 16px;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  .ontrack-live-dot{
+    flex: none;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 var(--accent);
+    animation: pulse 1.8s ease-out infinite;
+  }
+
+  .ontrack-label{
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .ontrack-num{
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ontrack-name{
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--text);
+  }
+
+  .ontrack-class{
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 10px;
+    text-transform: uppercase;
+  }
+
+  .ontrack-run{
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+
+  .ontrack-champ{
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .ontrack-champ strong{ color: var(--gold); font-size: 15px; }
+
+  @media (max-width: 640px){
+    .ontrack-banner{ padding: 10px 14px; gap: 8px 12px; }
+    .ontrack-num, .ontrack-name{ font-size: 16px; }
+    .ontrack-run{ margin-left: 0; }
+  }
 </style>
 </head>
 <body>
@@ -536,6 +616,16 @@
         <button type="button" class="switch-btn" data-view="lcq">Qualif LCQ</button>
         <button type="button" class="switch-btn" data-view="top16">Top 16 Bracket</button>
       </div>
+    </div>
+
+    <div class="ontrack-banner hidden" id="ontrackBanner">
+      <span class="ontrack-live-dot"></span>
+      <span class="ontrack-label">En piste</span>
+      <span class="ontrack-num" id="ontrackNum">#—</span>
+      <span class="ontrack-name" id="ontrackName">—</span>
+      <span class="ontrack-class" id="ontrackClass"></span>
+      <span class="ontrack-champ">Championnat : <strong id="ontrackChamp">—</strong></span>
+      <span class="ontrack-run" id="ontrackRun">—</span>
     </div>
 
     <p class="context-label" id="contextLabel"><strong>PRO</strong> · Qualification</p>
@@ -576,6 +666,11 @@
   var POLL_MS = 3000;
   var FETCH_TIMEOUT_MS = 9000;
 
+  // Sheet "dmcc info live" — onglet "qualifs" : indicateur du pilote actuellement en piste
+  // (numero, Driver, Championnat, run, classe, ...), rempli/maintenu par Cedric côté Sheets.
+  var LIVE_SHEET_ID = '1yvpVAKQPRgzBOxSnZT9rpxXk18Nih0lm6OuDWdkA5ls';
+  var LIVE_SHEET_TAB = 'qualifs';
+
   function parseHash(){
     var parts = location.hash.replace('#', '').split('-');
     return {
@@ -599,6 +694,8 @@
   var prevTop16 = {};       // cell key -> last rendered signature, for flash-on-change
   var lcqRows = null;       // [{ordre, num, name}] — feuille "Ordre qualif run #2"
   var prevLcq = {};         // num -> last rendered fields (Qualif LCQ view), for flash-on-change
+  var onTrack = null;       // {num, name, champ, run, classe} — pilote en piste, ou false si aucun
+  var prevOnTrack = null;   // dernier pilote affiché, pour le flash au changement
   var jsonpSeq = 0;
 
   function cellVal(cell){
@@ -692,6 +789,30 @@
       });
     }
     return out;
+  }
+
+  // Sheet "dmcc info live", onglet "qualifs" — une seule ligne vivante décrivant le pilote
+  // actuellement en piste. Colonnes : A numero, B Driver, C Championnat, D run, E classe.
+  function parseOnTrack(resp){
+    if (!resp || resp.status !== 'ok' || !resp.table) return null;
+    var rows = resp.table.rows || [];
+    var c = (rows[0] && rows[0].c) || [];
+    var name = cellVal(c[1]);
+    if (!String(name).trim()) return null;
+    return {
+      num:    String(cellVal(c[0])).trim(),
+      name:   String(name).trim(),
+      champ:  String(cellVal(c[2])).trim(),
+      run:    String(cellVal(c[3])).trim(),
+      classe: String(cellVal(c[4])).trim()
+    };
+  }
+
+  // "20" -> "20e", "1" -> "1er" (ordinaux français simples)
+  function ordinalFr(v){
+    var s = String(v || '').trim();
+    if (!/^\d+$/.test(s)) return s || '—';
+    return s === '1' ? '1er' : s + 'e';
   }
 
   // Full "scoring" sheet rows: columns B,C,D,E,F,H,I,J,K,M
@@ -978,7 +1099,29 @@
     };
   }
 
+  function renderOnTrackBanner(){
+    var el = document.getElementById('ontrackBanner');
+    if (!onTrack){
+      el.classList.add('hidden');
+      return;
+    }
+    el.classList.remove('hidden');
+    var changed = prevOnTrack && (prevOnTrack.num !== onTrack.num || prevOnTrack.run !== onTrack.run);
+    document.getElementById('ontrackNum').textContent = onTrack.num ? ('#' + onTrack.num) : '#—';
+    document.getElementById('ontrackName').textContent = onTrack.name || '—';
+    document.getElementById('ontrackClass').textContent = onTrack.classe ? onTrack.classe.toUpperCase() : '';
+    document.getElementById('ontrackChamp').textContent = onTrack.champ ? ordinalFr(onTrack.champ) : '—';
+    document.getElementById('ontrackRun').textContent = onTrack.run ? ('Run ' + onTrack.run) : '—';
+    if (changed){
+      el.classList.remove('flash-glow');
+      void el.offsetWidth;
+      el.classList.add('flash-glow');
+    }
+    prevOnTrack = onTrack;
+  }
+
   function render(){
+    renderOnTrackBanner();
     var tableCard = document.getElementById('tableCard');
     var bracketCard = document.getElementById('bracketCard');
     if (currentViewId === 'top16'){
@@ -1240,6 +1383,12 @@
         if (gen === activeGen) lcqRows = parseLcq(resp);
       }).catch(function(){
         if (gen === activeGen && lcqRows === null) lcqRows = [];
+      }),
+      // Indépendant de la classe Pro/Pro-Am sélectionnée — un seul pilote en piste à la fois.
+      jsonpFetch(LIVE_SHEET_ID, LIVE_SHEET_TAB, 1).then(function(resp){
+        onTrack = parseOnTrack(resp);
+      }).catch(function(){
+        if (onTrack === null) onTrack = false;
       })
     ]).then(function(){
       if (gen !== activeGen) return;
