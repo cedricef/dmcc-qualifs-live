@@ -587,10 +587,46 @@
 
   .ontrack-champ strong{ color: var(--gold); font-size: 15px; }
 
+  /* Bandeau "battle en cours" — feuille "battle" du sheet dmcc info live (vue Top 16) */
+  .battle-round{
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 10px;
+  }
+
+  .battle-vs{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .battle-driver{
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--text);
+  }
+
+  .battle-vs-sep{
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+  }
+
   @media (max-width: 640px){
     .ontrack-banner{ padding: 10px 14px; gap: 8px 12px; }
     .ontrack-num, .ontrack-name{ font-size: 16px; }
     .ontrack-run{ margin-left: 0; }
+    .battle-driver{ font-size: 16px; }
+    .battle-vs{ gap: 8px; }
   }
 </style>
 </head>
@@ -626,6 +662,17 @@
       <span class="ontrack-class" id="ontrackClass"></span>
       <span class="ontrack-champ">Championnat : <strong id="ontrackChamp">—</strong></span>
       <span class="ontrack-run" id="ontrackRun">—</span>
+    </div>
+
+    <div class="ontrack-banner hidden" id="battleBanner">
+      <span class="ontrack-live-dot"></span>
+      <span class="ontrack-label">En piste</span>
+      <span class="battle-round" id="battleBracket">—</span>
+      <span class="battle-vs">
+        <span class="battle-driver" id="battleD1">—</span>
+        <span class="battle-vs-sep">VS</span>
+        <span class="battle-driver" id="battleD2">—</span>
+      </span>
     </div>
 
     <p class="context-label" id="contextLabel"><strong>PRO</strong> · Qualification</p>
@@ -696,6 +743,8 @@
   var prevLcq = {};         // num -> last rendered fields (Qualif LCQ view), for flash-on-change
   var onTrack = null;       // {num, name, champ, run, classe} — pilote en piste, ou false si aucun
   var prevOnTrack = null;   // dernier pilote affiché, pour le flash au changement
+  var battleInfo = null;    // {bracket, d1, d2} — battle Top16 en cours, ou false si aucune
+  var prevBattle = null;    // dernière battle affichée, pour le flash au changement
   var jsonpSeq = 0;
 
   function cellVal(cell){
@@ -813,6 +862,23 @@
     var s = String(v || '').trim();
     if (!/^\d+$/.test(s)) return s || '—';
     return s === '1' ? '1er' : s + 'e';
+  }
+
+  // Sheet "dmcc info live", onglet "battle" — la battle Top16 en cours.
+  // Colonne A : nom du bracket (ligne 2). Colonne C : nom des 2 drivers (lignes 2 et 3).
+  function parseBattle(resp){
+    if (!resp || resp.status !== 'ok' || !resp.table) return null;
+    var rows = resp.table.rows || [];
+    var r0 = (rows[0] && rows[0].c) || [];
+    var r1 = (rows[1] && rows[1].c) || [];
+    var d1 = String(cellVal(r0[2]) || '').trim();
+    var d2 = String(cellVal(r1[2]) || '').trim();
+    if (!d1 && !d2) return null;
+    return {
+      bracket: String(cellVal(r0[0]) || '').trim(),
+      d1: d1,
+      d2: d2
+    };
   }
 
   // Full "scoring" sheet rows: columns B,C,D,E,F,H,I,J,K,M
@@ -1101,7 +1167,7 @@
 
   function renderOnTrackBanner(){
     var el = document.getElementById('ontrackBanner');
-    if (!onTrack){
+    if (currentViewId === 'top16' || !onTrack){
       el.classList.add('hidden');
       return;
     }
@@ -1120,8 +1186,28 @@
     prevOnTrack = onTrack;
   }
 
+  function renderBattleBanner(){
+    var el = document.getElementById('battleBanner');
+    if (currentViewId !== 'top16' || !battleInfo){
+      el.classList.add('hidden');
+      return;
+    }
+    el.classList.remove('hidden');
+    var changed = prevBattle && (prevBattle.d1 !== battleInfo.d1 || prevBattle.d2 !== battleInfo.d2 || prevBattle.bracket !== battleInfo.bracket);
+    document.getElementById('battleBracket').textContent = battleInfo.bracket || '—';
+    document.getElementById('battleD1').textContent = battleInfo.d1 || '—';
+    document.getElementById('battleD2').textContent = battleInfo.d2 || '—';
+    if (changed){
+      el.classList.remove('flash-glow');
+      void el.offsetWidth;
+      el.classList.add('flash-glow');
+    }
+    prevBattle = battleInfo;
+  }
+
   function render(){
     renderOnTrackBanner();
+    renderBattleBanner();
     var tableCard = document.getElementById('tableCard');
     var bracketCard = document.getElementById('bracketCard');
     if (currentViewId === 'top16'){
@@ -1389,6 +1475,11 @@
         onTrack = parseOnTrack(resp);
       }).catch(function(){
         if (onTrack === null) onTrack = false;
+      }),
+      jsonpFetch(LIVE_SHEET_ID, 'battle', 1).then(function(resp){
+        battleInfo = parseBattle(resp);
+      }).catch(function(){
+        if (battleInfo === null) battleInfo = false;
       })
     ]).then(function(){
       if (gen !== activeGen) return;
