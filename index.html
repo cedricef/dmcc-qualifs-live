@@ -1294,6 +1294,7 @@
 
     thead.innerHTML =
       '<tr>' +
+        '<th class="col-pos" style="width:56px">Ordre</th>' +
         '<th>#</th>' +
         '<th class="col-name">Pilote</th>' +
         '<th class="col-pos">Position</th>' +
@@ -1308,11 +1309,11 @@
       '</tr>';
 
     if (scoringRows === null){
-      tbody.innerHTML = '<tr><td colspan="11"><div class="loading-state">Chargement des données…</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12"><div class="loading-state">Chargement des données…</div></td></tr>';
       return;
     }
     if (!scoringRows.length){
-      tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state">Aucun pilote trouvé pour le moment.</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12"><div class="empty-state">Aucun pilote trouvé pour le moment.</div></td></tr>';
       return;
     }
 
@@ -1324,14 +1325,14 @@
       }
     }
 
-    var keys = ['num','name','qualifPos','styleR1','angleR1','lineR1','run1','styleR2','angleR2','lineR2','run2'];
+    var keys = ['ordre','num','name','qualifPos','styleR1','angleR1','lineR1','run1','styleR2','angleR2','lineR2','run2'];
     var html = '';
     var nextPrev = {};
 
     for (var i = 0; i < scoringRows.length; i++){
       var raw = scoringRows[i];
       var f = {
-        num: raw.num, name: raw.name,
+        ordre: i + 1, num: raw.num, name: raw.name,
         qualifPos: qualifPosByNum[raw.num] || '—',
         styleR1: raw.styleR1, angleR1: raw.angleR1, lineR1: raw.lineR1, run1: raw.run1,
         styleR2: raw.styleR2, angleR2: raw.angleR2, lineR2: raw.lineR2, run2: raw.run2
@@ -1347,7 +1348,7 @@
         var cls = '';
         if (key === 'name') cls = 'col-name';
         else if (key === 'run1' || key === 'run2') cls = 'col-run';
-        else if (key === 'qualifPos') cls = 'col-pos';
+        else if (key === 'qualifPos' || key === 'ordre') cls = 'col-pos';
         if (key === 'styleR1' || key === 'styleR2') cls = (cls ? cls + ' ' : '') + 'run-divider';
         if (changed) cls = (cls ? cls + ' ' : '') + 'flash';
         html += '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + escapeHtml(val) + '</td>';
