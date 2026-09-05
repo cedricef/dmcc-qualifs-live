@@ -789,8 +789,26 @@
   /* Table Staff Grid entièrement dépliée — pas de scroll interne, la page défile normalement. */
   .staff-table-scroll{ max-height: none; overflow-y: visible; }
 
+  /* Colonnes resserrées : sans ce min-width réduit, la table hérite du min-width:700px
+     global et force un défilement horizontal qui cache la colonne Position sur mobile. */
+  .staff-table-scroll table{ min-width: 0; }
+  .staff-table-scroll th,
+  .staff-table-scroll td{ padding: 9px 5px; }
+  .staff-table-scroll thead th.col-name,
+  .staff-table-scroll td.col-name{ padding-left: 8px; }
+  .staff-table-scroll td.col-run{ font-size: 16px; }
+  .staff-table-scroll td.col-score{ font-size: 16px; }
+
   @media (max-width: 640px){
     .staff-card{ padding: 16px; }
+  }
+
+  @media (max-width: 480px){
+    .staff-table-scroll th,
+    .staff-table-scroll td{ padding: 6px 2px; font-size: 11px; white-space: normal; }
+    .staff-table-scroll td.col-pos{ font-size: 13px; }
+    .staff-table-scroll td.col-run,
+    .staff-table-scroll td.col-score{ font-size: 13px; }
   }
 </style>
 </head>
@@ -880,11 +898,11 @@
         <table>
           <thead>
             <tr>
-              <th class="col-pos" style="width:70px">Ordre</th>
-              <th style="width:60px">#</th>
+              <th class="col-pos" style="width:30px">Ordre</th>
+              <th style="width:26px">#</th>
               <th class="col-name">Pilote</th>
-              <th class="col-pos">Position</th>
-              <th class="col-run run-divider">Run 1</th>
+              <th class="col-pos" style="width:46px">Position</th>
+              <th class="col-run">Run 1</th>
               <th class="col-run">Run 2</th>
               <th>Score</th>
             </tr>
@@ -1630,20 +1648,6 @@
   // Vue "Staff Grid" — juste l'ordre de passage (run 1 & LCQ), sans score ni position.
   // Vue "Staff Grid" — ordre de passage (run 1 ou LCQ, au choix) + run 1/run 2/score
   // pour que le staff connaisse le pointage sans avoir à consulter la feuille complète.
-  // Classes de rangée pour la position de qualification en cours — même code visuel que
-  // la vue "Qualification Rank" (top 3 en couleur, séparation à la 13e, non-qualifié après la 16e)
-  // pour que le staff repère d'un coup d'œil qui doit repasser en LCQ.
-  function staffPosRowClasses(pos){
-    var classes = ['row'];
-    var posNum = parseInt(pos, 10);
-    if (posNum === 1) classes.push('rank-1');
-    else if (posNum === 2) classes.push('rank-2');
-    else if (posNum === 3) classes.push('rank-3');
-    if (posNum === 13) classes.push('tier-break');
-    if (posNum > 16) classes.push('not-qualified');
-    return classes.join(' ');
-  }
-
   function renderStaff(){
     var body = document.getElementById('staffBody');
 
@@ -1673,12 +1677,12 @@
       for (var j = 0; j < lcqRows.length; j++){
         var l = lcqRows[j];
         var sc = scoringByNum[l.num] || {};
-        htmlLcq += '<tr class="' + staffPosRowClasses(posByNum[l.num]) + '">' +
+        htmlLcq += '<tr class="row">' +
           '<td class="col-pos">' + escapeHtml(l.ordre) + '</td>' +
           '<td>' + escapeHtml(l.num) + '</td>' +
           '<td class="col-name">' + escapeHtml(l.name) + '</td>' +
           '<td class="col-pos">' + escapeHtml(posByNum[l.num] || '—') + '</td>' +
-          '<td class="col-run run-divider">' + escapeHtml(sc.run1 || '—') + '</td>' +
+          '<td class="col-run">' + escapeHtml(sc.run1 || '—') + '</td>' +
           '<td class="col-run">' + escapeHtml(sc.run2 || '—') + '</td>' +
           '<td class="col-score">' + escapeHtml(scoreByNum[l.num] || '—') + '</td>' +
         '</tr>';
@@ -1696,12 +1700,12 @@
       var htmlRun1 = '';
       for (var i = 0; i < scoringRows.length; i++){
         var r = scoringRows[i];
-        htmlRun1 += '<tr class="' + staffPosRowClasses(posByNum[r.num]) + '">' +
+        htmlRun1 += '<tr class="row">' +
           '<td class="col-pos">' + (i + 1) + '</td>' +
           '<td>' + escapeHtml(r.num) + '</td>' +
           '<td class="col-name">' + escapeHtml(r.name) + '</td>' +
           '<td class="col-pos">' + escapeHtml(posByNum[r.num] || '—') + '</td>' +
-          '<td class="col-run run-divider">' + escapeHtml(r.run1 || '—') + '</td>' +
+          '<td class="col-run">' + escapeHtml(r.run1 || '—') + '</td>' +
           '<td class="col-run">' + escapeHtml(r.run2 || '—') + '</td>' +
           '<td class="col-score">' + escapeHtml(scoreByNum[r.num] || '—') + '</td>' +
         '</tr>';
