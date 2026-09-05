@@ -1130,33 +1130,66 @@
     prevScoring = nextPrev;
   }
 
-  // Vue "Qualif LCQ" — ordre de passage pour la reprise (feuille "Ordre qualif run #2")
+  // Vue "Qualif LCQ" — ordre de passage pour la reprise (feuille "Ordre qualif run #2"),
+  // jumelée avec les données de la feuille "scoring" (par numéro de pilote) pour donner
+  // tout le contexte de qualification directement à côté du nom.
   function renderLcq(){
     var thead = document.getElementById('thead');
     var tbody = document.getElementById('tbody');
 
     thead.innerHTML =
       '<tr>' +
-        '<th class="col-pos">Ordre</th>' +
-        '<th>#</th>' +
+        '<th class="col-pos" style="width:60px">Ordre</th>' +
+        '<th style="width:50px">#</th>' +
         '<th class="col-name">Pilote</th>' +
+        '<th class="col-pos">Position</th>' +
+        '<th class="run-divider">Style</th>' +
+        '<th>Angle</th>' +
+        '<th>Ligne</th>' +
+        '<th class="col-run">Run 1</th>' +
+        '<th class="run-divider">Style</th>' +
+        '<th>Angle</th>' +
+        '<th>Ligne</th>' +
+        '<th class="col-run">Run 2</th>' +
       '</tr>';
 
     if (lcqRows === null){
-      tbody.innerHTML = '<tr><td colspan="3"><div class="loading-state">Chargement des données…</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12"><div class="loading-state">Chargement des données…</div></td></tr>';
       return;
     }
     if (!lcqRows.length){
-      tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state">Aucun pilote trouvé pour le moment.</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12"><div class="empty-state">Aucun pilote trouvé pour le moment.</div></td></tr>';
       return;
     }
 
-    var keys = ['ordre', 'num', 'name'];
+    // Position de qualification (feuille Qualifs) et détails de run (feuille scoring),
+    // jumelés par numéro de pilote.
+    var qualifPosByNum = {};
+    if (qualifsRows){
+      for (var q = 0; q < qualifsRows.length; q++){
+        qualifPosByNum[qualifsRows[q].num] = qualifsRows[q].pos;
+      }
+    }
+    var scoringByNum = {};
+    if (scoringRows){
+      for (var s = 0; s < scoringRows.length; s++){
+        scoringByNum[scoringRows[s].num] = scoringRows[s];
+      }
+    }
+
+    var keys = ['ordre', 'num', 'name', 'qualifPos', 'styleR1', 'angleR1', 'lineR1', 'run1', 'styleR2', 'angleR2', 'lineR2', 'run2'];
     var html = '';
     var nextPrev = {};
 
     for (var i = 0; i < lcqRows.length; i++){
-      var f = lcqRows[i];
+      var row = lcqRows[i];
+      var sc = scoringByNum[row.num] || {};
+      var f = {
+        ordre: row.ordre, num: row.num, name: row.name,
+        qualifPos: qualifPosByNum[row.num] || '—',
+        styleR1: sc.styleR1 || '—', angleR1: sc.angleR1 || '—', lineR1: sc.lineR1 || '—', run1: sc.run1 || '—',
+        styleR2: sc.styleR2 || '—', angleR2: sc.angleR2 || '—', lineR2: sc.lineR2 || '—', run2: sc.run2 || '—'
+      };
       nextPrev[f.num] = f;
       var prev = prevLcq[f.num];
 
@@ -1167,7 +1200,9 @@
         var changed = prev && String(prev[key]) !== String(val);
         var cls = '';
         if (key === 'name') cls = 'col-name';
-        else if (key === 'ordre') cls = 'col-pos';
+        else if (key === 'ordre' || key === 'qualifPos') cls = 'col-pos';
+        else if (key === 'run1' || key === 'run2') cls = 'col-run';
+        if (key === 'styleR1' || key === 'styleR2') cls = (cls ? cls + ' ' : '') + 'run-divider';
         if (changed) cls = (cls ? cls + ' ' : '') + 'flash';
         html += '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + escapeHtml(val) + '</td>';
       }
