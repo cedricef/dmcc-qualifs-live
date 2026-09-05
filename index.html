@@ -883,13 +883,14 @@
               <th class="col-pos" style="width:70px">Ordre</th>
               <th style="width:60px">#</th>
               <th class="col-name">Pilote</th>
+              <th class="col-pos">Position</th>
               <th class="col-run run-divider">Run 1</th>
               <th class="col-run">Run 2</th>
               <th>Score</th>
             </tr>
           </thead>
           <tbody id="staffBody">
-            <tr><td colspan="6"><div class="loading-state">Chargement…</div></td></tr>
+            <tr><td colspan="7"><div class="loading-state">Chargement…</div></td></tr>
           </tbody>
         </table>
       </div>
@@ -1629,21 +1630,39 @@
   // Vue "Staff Grid" — juste l'ordre de passage (run 1 & LCQ), sans score ni position.
   // Vue "Staff Grid" — ordre de passage (run 1 ou LCQ, au choix) + run 1/run 2/score
   // pour que le staff connaisse le pointage sans avoir à consulter la feuille complète.
+  // Classes de rangée pour la position de qualification en cours — même code visuel que
+  // la vue "Qualification Rank" (top 3 en couleur, séparation à la 13e, non-qualifié après la 16e)
+  // pour que le staff repère d'un coup d'œil qui doit repasser en LCQ.
+  function staffPosRowClasses(pos){
+    var classes = ['row'];
+    var posNum = parseInt(pos, 10);
+    if (posNum === 1) classes.push('rank-1');
+    else if (posNum === 2) classes.push('rank-2');
+    else if (posNum === 3) classes.push('rank-3');
+    if (posNum === 13) classes.push('tier-break');
+    if (posNum > 16) classes.push('not-qualified');
+    return classes.join(' ');
+  }
+
   function renderStaff(){
     var body = document.getElementById('staffBody');
 
     var scoreByNum = {};
+    var posByNum = {};
     if (qualifsRows){
-      for (var q = 0; q < qualifsRows.length; q++){ scoreByNum[qualifsRows[q].num] = qualifsRows[q].score; }
+      for (var q = 0; q < qualifsRows.length; q++){
+        scoreByNum[qualifsRows[q].num] = qualifsRows[q].score;
+        posByNum[qualifsRows[q].num] = qualifsRows[q].pos;
+      }
     }
 
     if (currentStaffMode === 'lcq'){
       if (lcqRows === null){
-        body.innerHTML = '<tr><td colspan="6"><div class="loading-state">Chargement…</div></td></tr>';
+        body.innerHTML = '<tr><td colspan="7"><div class="loading-state">Chargement…</div></td></tr>';
         return;
       }
       if (!lcqRows.length){
-        body.innerHTML = '<tr><td colspan="6"><div class="empty-state">Aucun pilote trouvé.</div></td></tr>';
+        body.innerHTML = '<tr><td colspan="7"><div class="empty-state">Aucun pilote trouvé.</div></td></tr>';
         return;
       }
       var scoringByNum = {};
@@ -1654,10 +1673,11 @@
       for (var j = 0; j < lcqRows.length; j++){
         var l = lcqRows[j];
         var sc = scoringByNum[l.num] || {};
-        htmlLcq += '<tr class="row">' +
+        htmlLcq += '<tr class="' + staffPosRowClasses(posByNum[l.num]) + '">' +
           '<td class="col-pos">' + escapeHtml(l.ordre) + '</td>' +
           '<td>' + escapeHtml(l.num) + '</td>' +
           '<td class="col-name">' + escapeHtml(l.name) + '</td>' +
+          '<td class="col-pos">' + escapeHtml(posByNum[l.num] || '—') + '</td>' +
           '<td class="col-run run-divider">' + escapeHtml(sc.run1 || '—') + '</td>' +
           '<td class="col-run">' + escapeHtml(sc.run2 || '—') + '</td>' +
           '<td class="col-score">' + escapeHtml(scoreByNum[l.num] || '—') + '</td>' +
@@ -1666,20 +1686,21 @@
       body.innerHTML = htmlLcq;
     } else {
       if (scoringRows === null){
-        body.innerHTML = '<tr><td colspan="6"><div class="loading-state">Chargement…</div></td></tr>';
+        body.innerHTML = '<tr><td colspan="7"><div class="loading-state">Chargement…</div></td></tr>';
         return;
       }
       if (!scoringRows.length){
-        body.innerHTML = '<tr><td colspan="6"><div class="empty-state">Aucun pilote trouvé.</div></td></tr>';
+        body.innerHTML = '<tr><td colspan="7"><div class="empty-state">Aucun pilote trouvé.</div></td></tr>';
         return;
       }
       var htmlRun1 = '';
       for (var i = 0; i < scoringRows.length; i++){
         var r = scoringRows[i];
-        htmlRun1 += '<tr class="row">' +
+        htmlRun1 += '<tr class="' + staffPosRowClasses(posByNum[r.num]) + '">' +
           '<td class="col-pos">' + (i + 1) + '</td>' +
           '<td>' + escapeHtml(r.num) + '</td>' +
           '<td class="col-name">' + escapeHtml(r.name) + '</td>' +
+          '<td class="col-pos">' + escapeHtml(posByNum[r.num] || '—') + '</td>' +
           '<td class="col-run run-divider">' + escapeHtml(r.run1 || '—') + '</td>' +
           '<td class="col-run">' + escapeHtml(r.run2 || '—') + '</td>' +
           '<td class="col-score">' + escapeHtml(scoreByNum[r.num] || '—') + '</td>' +
