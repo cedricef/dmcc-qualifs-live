@@ -774,6 +774,41 @@
     .sponsor-card{ padding: 16px; }
     .driver-box{ padding: 12px 14px; }
   }
+
+  /* ---------- Vue "Staff Grid" : ordre de passage run 1 & LCQ, sans score ---------- */
+  .staff-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .staff-grid{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .staff-col-title{
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0 0 10px;
+  }
+
+  table.staff-table{ min-width: 0; }
+
+  @media (max-width: 760px){
+    .staff-grid{ grid-template-columns: 1fr; gap: 28px; }
+  }
+
+  @media (max-width: 640px){
+    .staff-card{ padding: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -798,6 +833,7 @@
         <button type="button" class="switch-btn" data-view="lcq">Qualif LCQ</button>
         <button type="button" class="switch-btn" data-view="top16">Top 16 Bracket</button>
         <button type="button" class="switch-btn" data-view="sponsors">Annonceurs</button>
+        <button type="button" class="switch-btn" data-view="staff">Staff Grid</button>
       </div>
     </div>
 
@@ -852,6 +888,45 @@
       <div id="sponsorBody"><div class="loading-state">Chargement des données…</div></div>
     </div>
 
+    <div class="staff-card hidden" id="staffCard">
+      <div class="staff-grid">
+        <div class="staff-col">
+          <div class="staff-col-title">Ordre de qualification — Run 1</div>
+          <div class="table-scroll">
+            <table class="staff-table">
+              <thead>
+                <tr>
+                  <th class="col-pos" style="width:70px">Ordre</th>
+                  <th style="width:60px">#</th>
+                  <th class="col-name">Pilote</th>
+                </tr>
+              </thead>
+              <tbody id="staffRun1Body">
+                <tr><td colspan="3"><div class="loading-state">Chargement…</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="staff-col">
+          <div class="staff-col-title">Ordre LCQ</div>
+          <div class="table-scroll">
+            <table class="staff-table">
+              <thead>
+                <tr>
+                  <th class="col-pos" style="width:70px">Ordre</th>
+                  <th style="width:60px">#</th>
+                  <th class="col-name">Pilote</th>
+                </tr>
+              </thead>
+              <tbody id="staffLcqBody">
+                <tr><td colspan="3"><div class="loading-state">Chargement…</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <footer>
       <span id="footerSource">Source : feuilles « Qualifs » &amp; « scoring » — Google Sheets</span>
       <span>Actualisation automatique toutes les 3 secondes</span>
@@ -869,7 +944,8 @@
     scoring:  { label: 'Qualification Sheet' },
     lcq:      { label: 'Qualif LCQ' },
     top16:    { label: 'Top 16 Bracket' },
-    sponsors: { label: 'Annonceurs' }
+    sponsors: { label: 'Annonceurs' },
+    staff:    { label: 'Staff Grid' }
   };
   var POLL_MS = 3000;
   var FETCH_TIMEOUT_MS = 9000;
@@ -906,8 +982,11 @@
   var prevOnTrack = null;   // dernier pilote affiché, pour le flash au changement
   var battleInfo = null;    // {bracket, d1, d2} — battle Top16 en cours, ou false si aucune
   var prevBattle = null;    // dernière battle affichée, pour le flash au changement
-  var statsData = null;     // [{name, num, podiums, battles, wins, winPct, manufacturer, car, power, classe, champ}]
-  var statsByNum = {};      // Map<num, statsRow>
+  // Stats carriere -- donnees statiques (feuille live "Stats" non fiable / desynchronisee),
+  // indexees par classe puis par numero de pilote pour eviter les collisions entre pro/pro-am.
+  var STATS_DATA = [{"name":"Marc Landreville","num":"11","podiums":"9","battles":"42","wins":"35","winPct":"83.33%","manufacturer":"Nissan","car":"silvia","power":"830","classe":"pro","champ":"1"},{"name":"Youri Lévesque","num":"14","podiums":"8","battles":"54","wins":"35","winPct":"64.81%","manufacturer":"Nissan","car":"240sx","power":"700","classe":"pro","champ":"2"},{"name":"Michel Pelchat","num":"38","podiums":"7","battles":"45","wins":"28","winPct":"62.22%","manufacturer":"Ford","car":"Mustang","power":"","classe":"pro","champ":"23"},{"name":"Kevin Morin","num":"28","podiums":"6","battles":"53","wins":"33","winPct":"62.26%","manufacturer":"Bmw","car":"E36","power":"650","classe":"pro","champ":"14"},{"name":"Martin Langlois","num":"72","podiums":"6","battles":"46","wins":"28","winPct":"60.87%","manufacturer":"Nissan","car":"silvia","power":"1072","classe":"pro","champ":"3"},{"name":"Josiah Fallaise","num":"13","podiums":"4","battles":"29","wins":"19","winPct":"65.52%","manufacturer":"Chevy","car":"Corvette","power":"","classe":"pro","champ":"8"},{"name":"Jesen Lemarbre","num":"8","podiums":"3","battles":"39","wins":"18","winPct":"46.15%","manufacturer":"Nissan","car":"Skyline","power":"700","classe":"pro","champ":"5"},{"name":"Jonathan Guitard","num":"27","podiums":"4","battles":"36","wins":"21","winPct":"58.33%","manufacturer":"Lexus","car":"sc400","power":"800","classe":"pro","champ":"4"},{"name":"Mirko D. Hamel","num":"32","podiums":"3","battles":"18","wins":"11","winPct":"61.11%","manufacturer":"nissan","car":"240sx","power":"650","classe":"pro","champ":"17"},{"name":"Jason Laliberté","num":"235","podiums":"2","battles":"30","wins":"18","winPct":"60.00%","manufacturer":"Nissan","car":"240sx","power":"774","classe":"pro","champ":"13"},{"name":"Nicolas Simard","num":"197","podiums":"2","battles":"24","wins":"14","winPct":"58.33%","manufacturer":"Bmw","car":"e46","power":"800","classe":"pro","champ":"21"},{"name":"Marc-andré Rodrigue","num":"94","podiums":"1","battles":"32","wins":"11","winPct":"34.38%","manufacturer":"Chevy","car":"Corvette","power":"900","classe":"pro","champ":"6"},{"name":"Guillaume Jarest","num":"","podiums":"1","battles":"23","wins":"10","winPct":"43.48%","manufacturer":"","car":"","power":"","classe":"pro","champ":""},{"name":"MICHAEL RAICHE","num":"333","podiums":"1","battles":"16","wins":"6","winPct":"37.50%","manufacturer":"nissan","car":"180sx","power":"700","classe":"pro","champ":"22"},{"name":"Sébastien Gauthier","num":"111","podiums":"1","battles":"17","wins":"6","winPct":"35.29%","manufacturer":"nissan","car":"s15","power":"","classe":"pro","champ":"24"},{"name":"Dave Widmer","num":"17","podiums":"1","battles":"15","wins":"5","winPct":"33.33%","manufacturer":"Nissan","car":"s15","power":"","classe":"pro","champ":"16"},{"name":"Cédric Légaré","num":"97","podiums":"0","battles":"24","wins":"6","winPct":"25.00%","manufacturer":"Chevy","car":"Corvette","power":"800","classe":"pro","champ":"7"},{"name":"Said Ben Maniar","num":"747","podiums":"0","battles":"13","wins":"2","winPct":"15.38%","manufacturer":"nissan","car":"240sx","power":"","classe":"pro","champ":"11"},{"name":"Jayden Martorana","num":"","podiums":"0","battles":"6","wins":"2","winPct":"33.33%","manufacturer":"","car":"","power":"","classe":"pro","champ":""},{"name":"Jf Bessette","num":"58","podiums":"0","battles":"6","wins":"1","winPct":"16.67%","manufacturer":"Ford","car":"Mustang","power":"750","classe":"pro","champ":"18"},{"name":"Maxime Pelletier","num":"66","podiums":"0","battles":"6","wins":"1","winPct":"16.67%","manufacturer":"Infiniti","car":"g35","power":"800","classe":"pro","champ":"27"},{"name":"Rick Craig","num":"","podiums":"0","battles":"5","wins":"1","winPct":"20.00%","manufacturer":"","car":"","power":"","classe":"pro","champ":""},{"name":"Dany Poulin","num":"","podiums":"0","battles":"4","wins":"1","winPct":"25.00%","manufacturer":"Bmw","car":"","power":"","classe":"pro","champ":""},{"name":"Mathieu Berthiaume","num":"99","podiums":"0","battles":"6","wins":"1","winPct":"16.67%","manufacturer":"Toyota","car":"chaser","power":"750","classe":"pro","champ":"9"},{"name":"Pier-Luc Lavoie","num":"280","podiums":"0","battles":"4","wins":"1","winPct":"25.00%","manufacturer":"Bmw","car":"e46","power":"","classe":"pro","champ":"10"},{"name":"Jody Carroll","num":"203","podiums":"0","battles":"3","wins":"0","winPct":"0.00%","manufacturer":"Nissan","car":"400z","power":"830","classe":"pro","champ":"12"},{"name":"Silvio Dos Santos","num":"91","podiums":"0","battles":"3","wins":"0","winPct":"0.00%","manufacturer":"toyota","car":"","power":"","classe":"pro","champ":"29"},{"name":"Vincent Théberge","num":"403","podiums":"0","battles":"2","wins":"1","winPct":"50.00%","manufacturer":"Nissan","car":"240sx","power":"750","classe":"pro","champ":"20"},{"name":"Dilan Lessard","num":"465","podiums":"0","battles":"3","wins":"1","winPct":"33.33%","manufacturer":"Lexus","car":"is300","power":"700","classe":"pro","champ":"15"},{"name":"JP Mercure","num":"4","podiums":"0","battles":"1","wins":"0","winPct":"0.00%","manufacturer":"Nissan","car":"240sx","power":"","classe":"pro","champ":"26"},{"name":"Brad Carlton","num":"12","podiums":"0","battles":"0","wins":"0","winPct":"0.00%","manufacturer":"Nissan","car":"240sx","power":"","classe":"pro","champ":"28"},{"name":"Dominic Desrosiers","num":"69","podiums":"0","battles":"0","wins":"0","winPct":"0.00%","manufacturer":"","car":"","power":"","classe":"pro","champ":""},{"name":"GABRIEL BEAURIVAGE","num":"","podiums":"0","battles":"0","wins":"0","winPct":"0.00%","manufacturer":"","car":"","power":"","classe":"pro","champ":""},{"name":"Maxime Cyrenne","num":"21","podiums":"0","battles":"1","wins":"0","winPct":"0.00%","manufacturer":"","car":"","power":"","classe":"pro","champ":"25"},{"name":"Tommy Lemaire","num":"233","podiums":"6","battles":"26","wins":"21","winPct":"80.77%","manufacturer":"Chevrolet","car":"Corvette","power":"","classe":"pro","champ":"19"},{"name":"Jeremy Bergeron","num":"44","podiums":"6","battles":"31","wins":"22","winPct":"70.97%","manufacturer":"bmw","car":"128i","power":"600","classe":"pro-am","champ":"2"},{"name":"David Labonté","num":"36","podiums":"4","battles":"23","wins":"16","winPct":"69.57%","manufacturer":"bmw","car":"e36","power":"","classe":"pro-am","champ":""},{"name":"William Guertin","num":"14","podiums":"4","battles":"22","wins":"18","winPct":"81.82%","manufacturer":"nissan","car":"silvia","power":"600","classe":"pro-am","champ":"1"},{"name":"Mathieu Beriau","num":"30","podiums":"2","battles":"28","wins":"15","winPct":"53.57%","manufacturer":"nissan","car":"350z","power":"700","classe":"pro-am","champ":"3"},{"name":"P-A Blier","num":"823","podiums":"2","battles":"18","wins":"10","winPct":"55.56%","manufacturer":"nissan","car":"skyline","power":"650","classe":"pro-am","champ":"25"},{"name":"Max Ménard","num":"941","podiums":"1","battles":"25","wins":"10","winPct":"40.00%","manufacturer":"nissan","car":"240sx","power":"550","classe":"pro-am","champ":"9"},{"name":"Jean-Luc Ricard","num":"302","podiums":"1","battles":"21","wins":"10","winPct":"47.62%","manufacturer":"nissan","car":"350z","power":"500","classe":"pro-am","champ":"24"},{"name":"Philippe G. Perreault","num":"69","podiums":"1","battles":"20","wins":"7","winPct":"35.00%","manufacturer":"nissan","car":"370z","power":"480","classe":"pro-am","champ":"8"},{"name":"Sébastien Houle","num":"89","podiums":"1","battles":"16","wins":"8","winPct":"50.00%","manufacturer":"nissan","car":"240sx","power":"700","classe":"pro-am","champ":"15"},{"name":"David Lambert","num":"113","podiums":"1","battles":"12","wins":"5","winPct":"41.67%","manufacturer":"nissan","car":"silvia","power":"700","classe":"pro-am","champ":"14"},{"name":"Francis Bélanger","num":"46","podiums":"1","battles":"12","wins":"5","winPct":"41.67%","manufacturer":"nissan","car":"240sx","power":"500","classe":"pro-am","champ":"11"},{"name":"Shawn Poirier","num":"444","podiums":"1","battles":"10","wins":"4","winPct":"40.00%","manufacturer":"bmw","car":"e92","power":"420","classe":"pro-am","champ":"18"},{"name":"Cedrick Papi.Lévesque","num":"8","podiums":"1","battles":"8","wins":"4","winPct":"50.00%","manufacturer":"Hyundai","car":"Genesis","power":"","classe":"pro-am","champ":"4"},{"name":"Nicolas Galarneau","num":"824","podiums":"0","battles":"16","wins":"6","winPct":"37.50%","manufacturer":"Mazda","car":"rx7","power":"650","classe":"pro-am","champ":"21"},{"name":"Philippe Coté Paré","num":"","podiums":"0","battles":"13","wins":"5","winPct":"38.46%","manufacturer":"","car":"","power":"","classe":"pro-am","champ":""},{"name":"Roger Besserve","num":"104","podiums":"0","battles":"13","wins":"3","winPct":"23.08%","manufacturer":"nissan","car":"240sx","power":"633","classe":"pro-am","champ":"7"},{"name":"Olivier Pelletier","num":"519","podiums":"0","battles":"8","wins":"1","winPct":"12.50%","manufacturer":"bmw","car":"","power":"","classe":"pro-am","champ":"28"},{"name":"Mathieu Hawey","num":"64","podiums":"0","battles":"8","wins":"3","winPct":"37.50%","manufacturer":"nissan","car":"240sx","power":"730","classe":"pro-am","champ":"5"},{"name":"Michaël Patenaude","num":"51","podiums":"0","battles":"6","wins":"1","winPct":"16.67%","manufacturer":"nissan","car":"240sx","power":"500","classe":"pro-am","champ":"17"},{"name":"Nick Therrien","num":"50","podiums":"0","battles":"6","wins":"1","winPct":"16.67%","manufacturer":"Nissan","car":"350z","power":"","classe":"pro-am","champ":"30"},{"name":"Alex Canuel","num":"53","podiums":"0","battles":"7","wins":"2","winPct":"28.57%","manufacturer":"mazda","car":"rx-8","power":"630","classe":"pro-am","champ":"20"},{"name":"Frédéric Grondin","num":"48","podiums":"0","battles":"6","wins":"2","winPct":"33.33%","manufacturer":"scion","car":"frs","power":"600","classe":"pro-am","champ":"13"},{"name":"Charles Paradis","num":"24","podiums":"0","battles":"4","wins":"1","winPct":"25.00%","manufacturer":"Nissan","car":"240sx","power":"","classe":"pro-am","champ":"12"},{"name":"Jonathan Paquin","num":"62","podiums":"0","battles":"4","wins":"1","winPct":"25.00%","manufacturer":"Nissan","car":"370z","power":"","classe":"pro-am","champ":"23"},{"name":"Tim Cyr","num":"13","podiums":"0","battles":"6","wins":"2","winPct":"33.33%","manufacturer":"nissan","car":"240sx","power":"","classe":"pro-am","champ":"6"},{"name":"Antoine-Olivier St-Pierre","num":"19","podiums":"0","battles":"3","wins":"1","winPct":"33.33%","manufacturer":"ford","car":"mustang","power":"654","classe":"pro-am","champ":"16"},{"name":"Hugues Léveillée","num":"367","podiums":"0","battles":"3","wins":"1","winPct":"33.33%","manufacturer":"lexus","car":"sc300","power":"650","classe":"pro-am","champ":"19"},{"name":"Kevin Major","num":"16","podiums":"0","battles":"4","wins":"1","winPct":"25.00%","manufacturer":"ford","car":"mustang","power":"700","classe":"pro-am","champ":"22"},{"name":"Pier-Luc Beaudoin","num":"181","podiums":"1","battles":"6","wins":"3","winPct":"50.00%","manufacturer":"bmw","car":"e92","power":"709","classe":"pro-am","champ":"10"},{"name":"Dany 'babu' Bernier","num":"76","podiums":"0","battles":"1","wins":"0","winPct":"0.00%","manufacturer":"Ford","car":"mustang","power":"","classe":"pro-am","champ":""},{"name":"Vanessa Skelling","num":"762","podiums":"0","battles":"1","wins":"0","winPct":"0.00%","manufacturer":"lexus","car":"sc400","power":"650","classe":"pro-am","champ":"29"},{"name":"Danny Bernier","num":"854","podiums":"0","battles":"0","wins":"0","winPct":"0.00%","manufacturer":"chevrolet","car":"camaro","power":"488","classe":"pro-am","champ":"26"},{"name":"Jérome St-Pierre","num":"","podiums":"0","battles":"0","wins":"0","winPct":"0.00%","manufacturer":"","car":"","power":"","classe":"pro-am","champ":""},{"name":"Marc Prud'homme","num":"99","podiums":"0","battles":"0","wins":"0","winPct":"0.00%","manufacturer":"Nissan","car":"240sx","power":"","classe":"pro-am","champ":"27"},{"name":"Paco Leclerc","num":"","podiums":"0","battles":"0","wins":"0","winPct":"0.00%","manufacturer":"","car":"","power":"","classe":"pro-am","champ":""}];
+  var statsData = STATS_DATA;
+  var statsByNum = buildStatsIndex(STATS_DATA);
   var sponsorsByNum = null; // Map<num, [sponsor, ...]> — feuille "site"
   var currentSponsorMode = 'qualif'; // 'qualif' | 'battle' — vue "Annonceurs"
   var jsonpSeq = 0;
@@ -1049,35 +1128,20 @@
   // Sheet "dmcc info live", onglet "Stats" — une ligne par pilote, statistiques de carrière.
   // Colonnes : Driver, Numero, Podiums, Overall Battles, Overall Battle Wins, Battle Win %,
   // Manufacture, Cars, Power, classe, photo, [championnat] (12e colonne optionnelle).
-  function parseStatsData(resp){
-    if (!resp || resp.status !== 'ok' || !resp.table) return [];
-    var rows = resp.table.rows || [];
-    var out = [];
-    for (var i = 0; i < rows.length; i++){
-      var c = (rows[i] && rows[i].c) || [];
-      var name = cellVal(c[0]);
-      if (!String(name).trim()) continue;
-      out.push({
-        name:         String(name).trim(),
-        num:          String(cellVal(c[1]) || '').trim(),
-        podiums:      String(cellVal(c[2]) || '').trim(),
-        battles:      String(cellVal(c[3]) || '').trim(),
-        wins:         String(cellVal(c[4]) || '').trim(),
-        winPct:       String(cellVal(c[5]) || '').trim(),
-        manufacturer: String(cellVal(c[6]) || '').trim(),
-        car:          String(cellVal(c[7]) || '').trim(),
-        power:        String(cellVal(c[8]) || '').trim(),
-        classe:       String(cellVal(c[9]) || '').trim(),
-        champ:        String(cellVal(c[11]) || '').trim()
-      });
-    }
-    return out;
+  // Normalise une classe ('Pro', 'pro-am', 'ProAm', ...) vers 'pro' / 'proam' pour le matching.
+  function normalizeClasse(v){
+    return String(v || '').toLowerCase().replace(/[\s-]+/g, '');
   }
 
-  function buildStatsByNum(rows){
+  // Index les stats par classe puis numero -- un meme numero peut exister en pro ET en pro-am.
+  function buildStatsIndex(rows){
     var map = {};
     for (var i = 0; i < rows.length; i++){
-      if (rows[i].num) map[rows[i].num] = rows[i];
+      var r = rows[i];
+      if (!r.num) continue;
+      var ck = normalizeClasse(r.classe);
+      if (!map[ck]) map[ck] = {};
+      map[ck][r.num] = r;
     }
     return map;
   }
@@ -1114,23 +1178,28 @@
       .trim();
   }
 
-  function findStatsByName(name){
+  function findStatsByName(name, classeKey){
     var n = normName(name);
     if (!n || !statsData) return null;
-    for (var i = 0; i < statsData.length; i++){
-      if (normName(statsData[i].name) === n) return statsData[i];
+    var pool = statsData;
+    if (classeKey){
+      pool = statsData.filter(function(r){ return normalizeClasse(r.classe) === classeKey; });
+    }
+    for (var i = 0; i < pool.length; i++){
+      if (normName(pool[i].name) === n) return pool[i];
     }
     var parts = n.split(' ');
     var surname = parts[parts.length - 1];
     var initial = parts[0] ? parts[0][0] : '';
-    for (var j = 0; j < statsData.length; j++){
-      var rparts = normName(statsData[j].name).split(' ');
+    for (var j = 0; j < pool.length; j++){
+      var rparts = normName(pool[j].name).split(' ');
       var rsurname = rparts[rparts.length - 1];
-      if (rsurname === surname && rparts[0] && rparts[0][0] === initial) return statsData[j];
+      if (rsurname === surname && rparts[0] && rparts[0][0] === initial) return pool[j];
     }
     if (surname.length > 2){
-      for (var k = 0; k < statsData.length; k++){
-        if (normName(statsData[k].name).indexOf(surname) !== -1) return statsData[k];
+      for (var k = 0; k < pool.length; k++){
+        var kwords = normName(pool[k].name).split(' ');
+        if (kwords.indexOf(surname) !== -1) return pool[k];
       }
     }
     return null;
@@ -1140,15 +1209,35 @@
   // num connu (mode Qualif, exact) ou seulement un nom (mode Battle, matching approximatif).
   function buildDriverProfile(num, name, extra){
     extra = extra || {};
-    var stats = (num && statsByNum[num]) || findStatsByName(name);
+    var classeKey = normalizeClasse(extra.classe || '');
+    var stats = (num && classeKey && statsByNum[classeKey] && statsByNum[classeKey][num]) || findStatsByName(name, classeKey);
     var resolvedNum = (stats && stats.num) || num || '';
     var sponsors = (sponsorsByNum && resolvedNum && sponsorsByNum[resolvedNum]) || [];
+
+    var qualifPos = '';
+    if (extra.showQualifPos && qualifsRows && qualifsRows.length){
+      var qrow = null;
+      if (resolvedNum){
+        for (var i = 0; i < qualifsRows.length; i++){
+          if (qualifsRows[i].num === resolvedNum){ qrow = qualifsRows[i]; break; }
+        }
+      }
+      if (!qrow){
+        var nn = normName(name);
+        for (var j = 0; j < qualifsRows.length; j++){
+          if (normName(qualifsRows[j].name) === nn){ qrow = qualifsRows[j]; break; }
+        }
+      }
+      if (qrow) qualifPos = qrow.pos;
+    }
+
     return {
       name: name,
       num: resolvedNum,
-      classe: (stats && stats.classe) || extra.classe || '',
+      classe: (stats && stats.classe) || extra.classeLabel || extra.classe || '',
       champ: extra.champ || (stats && stats.champ) || '',
       run: extra.run || '',
+      qualifPos: qualifPos,
       podiums: stats ? stats.podiums : '',
       battles: stats ? stats.battles : '',
       wins: stats ? stats.wins : '',
@@ -1493,6 +1582,7 @@
     html += '</div>';
 
     var meta = [];
+    if (p.qualifPos) meta.push('Qualification : <strong>' + escapeHtml(ordinalFr(p.qualifPos)) + '</strong>');
     if (p.champ) meta.push('Championnat : <strong>' + escapeHtml(ordinalFr(p.champ)) + '</strong>');
     if (p.run) meta.push('Run ' + escapeHtml(p.run));
     if (meta.length) html += '<div class="ontrack-champ">' + meta.join(' &nbsp;·&nbsp; ') + '</div>';
@@ -1521,8 +1611,9 @@
         body.innerHTML = '<div class="sponsor-empty">Aucune battle en cours pour le moment.</div>';
         return;
       }
-      var p1 = buildDriverProfile('', battleInfo.d1, {});
-      var p2 = buildDriverProfile('', battleInfo.d2, {});
+      var battleExtra = { classe: currentClassId, classeLabel: CLASSES[currentClassId].eyebrow, showQualifPos: true };
+      var p1 = buildDriverProfile('', battleInfo.d1, battleExtra);
+      var p2 = buildDriverProfile('', battleInfo.d2, battleExtra);
       body.innerHTML = '<div class="battle-profiles">' +
         driverProfileHtml(p1) +
         '<div class="vs-divider">VS</div>' +
@@ -1544,23 +1635,57 @@
     var tableCard = document.getElementById('tableCard');
     var bracketCard = document.getElementById('bracketCard');
     var sponsorCard = document.getElementById('sponsorCard');
+    var staffCard = document.getElementById('staffCard');
+    tableCard.classList.add('hidden');
+    bracketCard.classList.add('hidden');
+    sponsorCard.classList.add('hidden');
+    staffCard.classList.add('hidden');
     if (currentViewId === 'top16'){
-      tableCard.classList.add('hidden');
-      sponsorCard.classList.add('hidden');
       bracketCard.classList.remove('hidden');
       renderTop16();
     } else if (currentViewId === 'sponsors'){
-      tableCard.classList.add('hidden');
-      bracketCard.classList.add('hidden');
       sponsorCard.classList.remove('hidden');
       renderSponsorCard();
+    } else if (currentViewId === 'staff'){
+      staffCard.classList.remove('hidden');
+      renderStaff();
     } else {
-      bracketCard.classList.add('hidden');
-      sponsorCard.classList.add('hidden');
       tableCard.classList.remove('hidden');
       if (currentViewId === 'scoring') renderScoring();
       else if (currentViewId === 'lcq') renderLcq();
       else renderQuali();
+    }
+  }
+
+  // Vue "Staff Grid" — juste l'ordre de passage (run 1 & LCQ), sans score ni position.
+  function renderStaff(){
+    var run1Body = document.getElementById('staffRun1Body');
+    var lcqBody = document.getElementById('staffLcqBody');
+
+    if (scoringRows === null){
+      run1Body.innerHTML = '<tr><td colspan="3"><div class="loading-state">Chargement…</div></td></tr>';
+    } else if (!scoringRows.length){
+      run1Body.innerHTML = '<tr><td colspan="3"><div class="empty-state">Aucun pilote trouvé.</div></td></tr>';
+    } else {
+      var html1 = '';
+      for (var i = 0; i < scoringRows.length; i++){
+        var r = scoringRows[i];
+        html1 += '<tr class="row"><td class="col-pos">' + (i + 1) + '</td><td>' + escapeHtml(r.num) + '</td><td class="col-name">' + escapeHtml(r.name) + '</td></tr>';
+      }
+      run1Body.innerHTML = html1;
+    }
+
+    if (lcqRows === null){
+      lcqBody.innerHTML = '<tr><td colspan="3"><div class="loading-state">Chargement…</div></td></tr>';
+    } else if (!lcqRows.length){
+      lcqBody.innerHTML = '<tr><td colspan="3"><div class="empty-state">Aucun pilote trouvé.</div></td></tr>';
+    } else {
+      var html2 = '';
+      for (var j = 0; j < lcqRows.length; j++){
+        var l = lcqRows[j];
+        html2 += '<tr class="row"><td class="col-pos">' + escapeHtml(l.ordre) + '</td><td>' + escapeHtml(l.num) + '</td><td class="col-name">' + escapeHtml(l.name) + '</td></tr>';
+      }
+      lcqBody.innerHTML = html2;
     }
   }
 
@@ -1823,12 +1948,6 @@
       }).catch(function(){
         if (battleInfo === null) battleInfo = false;
       }),
-      jsonpFetch(LIVE_SHEET_ID, 'Stats', 1).then(function(resp){
-        statsData = parseStatsData(resp);
-        statsByNum = buildStatsByNum(statsData);
-      }).catch(function(){
-        if (statsData === null){ statsData = []; statsByNum = {}; }
-      }),
       jsonpFetch(LIVE_SHEET_ID, 'site', 1).then(function(resp){
         sponsorsByNum = parseSiteSponsors(resp);
       }).catch(function(){
@@ -1871,7 +1990,8 @@
       (currentViewId === 'scoring')  ? 'Source : feuille « scoring » — Google Sheets' :
       (currentViewId === 'top16')    ? 'Source : feuille « Top16 » — Google Sheets' :
       (currentViewId === 'lcq')      ? 'Source : feuille « Ordre qualif run #2 » — Google Sheets' :
-      (currentViewId === 'sponsors') ? 'Source : feuilles « qualifs », « battle », « Stats » & « site » — Google Sheets' :
+      (currentViewId === 'sponsors') ? 'Source : feuilles « qualifs » & « battle » (Google Sheets) + stats internes' :
+      (currentViewId === 'staff')    ? 'Source : feuilles « scoring » & « Ordre qualif run #2 » — Google Sheets' :
       'Source : feuilles « Qualifs » & « scoring » — Google Sheets';
     document.getElementById('classSelect').value = currentClassId;
     document.getElementById('viewSelect').value = currentViewId;
