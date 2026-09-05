@@ -1274,17 +1274,42 @@
   // La feuille encode le bracket de façon spatiale (pas des colonnes tabulaires).
   // Ce gabarit fixe (rowTop, rowBot, colName, colFlag) — identique pour Pro et Pro-Am —
   // a été établi en inspectant les feuilles réelles cellule par cellule.
-  var TOP16_TEMPLATE = {
-    top16Left:   [ [2,4,1,0], [10,12,1,0], [16,18,1,0], [26,28,1,0] ],
-    top16Right:  [ [2,4,13,14], [10,12,13,14], [16,18,13,14], [26,28,13,14] ],
-    top8Left:    [ [5,7,3,2], [21,23,3,2] ],
-    top8Right:   [ [5,7,11,12], [21,23,11,12] ],
+  // Partie haute du tableau : identique sur les deux feuilles (Pro / Pro-Am) à ce jour.
+  var TOP16_TEMPLATE_BASE = {
+    top16Left:   [ [2,4,1,0], [10,12,1,0], [16,18,1,0] ],
+    top16Right:  [ [2,4,13,14], [10,12,13,14], [16,18,13,14] ],
+    top8Left:    [ [5,7,3,2] ],
+    top8Right:   [ [5,7,11,12] ],
     final4Left:  [ [13,15,5,4] ],
     final4Right: [ [13,15,9,10] ],
     finalMatch:  [10,12,6,8],
-    thirdMatch:  [19,21,6,8],
-    resultRows:  [24,25,26,27]
+    thirdMatch:  [19,21,6,8]
   };
+
+  // Bas du tableau (4e match Top16, 2e match Top8, classement 1-4) : saisi/complété
+  // manuellement par le staff dans le classeur, donc les feuilles Pro et Pro-Am
+  // peuvent avoir un décalage de lignes différent (ex. une ligne ajoutée en cours
+  // d'événement). Valeurs vérifiées cellule par cellule pour chaque feuille — à
+  // rajuster si la structure de l'une des feuilles change encore.
+  var TOP16_BOTTOM = {
+    pro:   { top16Match4: [26,28], top8Match2: [21,23], resultRows: [24,25,26,27] },
+    proam: { top16Match4: [27,29], top8Match2: [22,24], resultRows: [25,26,27,28] }
+  };
+
+  function getTop16Template(classeKey){
+    var b = TOP16_BOTTOM[classeKey] || TOP16_BOTTOM.pro;
+    return {
+      top16Left:   TOP16_TEMPLATE_BASE.top16Left.concat([ [b.top16Match4[0], b.top16Match4[1], 1, 0] ]),
+      top16Right:  TOP16_TEMPLATE_BASE.top16Right.concat([ [b.top16Match4[0], b.top16Match4[1], 13, 14] ]),
+      top8Left:    TOP16_TEMPLATE_BASE.top8Left.concat([ [b.top8Match2[0], b.top8Match2[1], 3, 2] ]),
+      top8Right:   TOP16_TEMPLATE_BASE.top8Right.concat([ [b.top8Match2[0], b.top8Match2[1], 11, 12] ]),
+      final4Left:  TOP16_TEMPLATE_BASE.final4Left,
+      final4Right: TOP16_TEMPLATE_BASE.final4Right,
+      finalMatch:  TOP16_TEMPLATE_BASE.finalMatch,
+      thirdMatch:  TOP16_TEMPLATE_BASE.thirdMatch,
+      resultRows:  b.resultRows
+    };
+  }
 
   function top16Cell(table, r, c){
     var row = table.rows[r];
@@ -1321,10 +1346,10 @@
     };
   }
 
-  function parseTop16(resp){
+  function parseTop16(resp, classeKey){
     if (!resp || resp.status !== 'ok' || !resp.table || !resp.table.rows) return false;
     var t = resp.table;
-    var d = TOP16_TEMPLATE;
+    var d = getTop16Template(classeKey);
 
     function matches(list){
       var out = [];
@@ -1953,7 +1978,7 @@
         }
       }),
       jsonpFetch(sheetId, 'Top16', 0).then(function(resp){
-        if (gen === activeGen) top16Rows = parseTop16(resp);
+        if (gen === activeGen) top16Rows = parseTop16(resp, currentClassId);
       }).catch(function(){
         if (gen === activeGen && top16Rows === null) top16Rows = false;
       }),
