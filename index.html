@@ -724,7 +724,7 @@
   }
 
   .driver-box-stats strong{
-    color: var(--accent);
+    color: var(--text);
     font-variant-numeric: tabular-nums;
   }
 
@@ -1506,15 +1506,6 @@
     if (vehicule) stats.push('Véhicule : <strong>' + escapeHtml(vehicule) + '</strong>');
     if (p.power) stats.push('Puissance : <strong>' + escapeHtml(p.power) + ' hp</strong>');
     html += '<div class="driver-box-stats">' + stats.join(' &nbsp;·&nbsp; ') + '</div>';
-
-    html += '<div class="sponsor-list-title">Commanditaires</div>';
-    if (p.sponsors && p.sponsors.length){
-      html += '<div class="sponsor-tags">' + p.sponsors.map(function(s){
-        return '<span class="sponsor-tag">' + escapeHtml(s) + '</span>';
-      }).join('') + '</div>';
-    } else {
-      html += '<div class="sponsor-tags"><span class="sponsor-tag" style="opacity:.55">Aucun commanditaire trouvé</span></div>';
-    }
     html += '</div>';
     return html;
   }
