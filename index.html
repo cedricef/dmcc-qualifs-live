@@ -677,6 +677,103 @@
     .battle-driver{ font-size: 16px; }
     .battle-vs{ gap: 8px; }
   }
+
+  /* ---------- Vue "Annonceurs" : stats + commanditaires ---------- */
+  .sponsor-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .sponsor-mode-switch{ margin-bottom: 18px; }
+  .sponsor-mode-switch .switch-btn.active{ background: var(--accent); color: #fff; }
+
+  .sponsor-empty{
+    padding: 50px 20px;
+    text-align: center;
+    color: var(--text-faint);
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 0.04em;
+  }
+
+  /* Boite pilote — meme esthetique que le bandeau "en piste" */
+  .driver-box{
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: linear-gradient(90deg, var(--accent-soft), transparent 85%);
+    border: 1px solid var(--accent-deep);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 18px;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  .driver-box-head{
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+  }
+
+  .driver-box-stats{
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+
+  .driver-box-stats strong{
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sponsor-list-title{
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin: 2px 0 2px;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  .sponsor-tags{ display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .sponsor-tag{
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .battle-profiles{
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 22px;
+    align-items: start;
+  }
+
+  .battle-profiles .vs-divider{
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 800;
+    color: var(--accent);
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    align-self: center;
+    padding-top: 30px;
+  }
+
+  @media (max-width: 760px){
+    .battle-profiles{ grid-template-columns: 1fr; }
+    .battle-profiles .vs-divider{ padding-top: 0; text-align: center; }
+  }
+
+  @media (max-width: 640px){
+    .sponsor-card{ padding: 16px; }
+    .driver-box{ padding: 12px 14px; }
+  }
 </style>
 </head>
 <body>
@@ -700,6 +797,7 @@
         <button type="button" class="switch-btn" data-view="scoring">Qualification Sheet</button>
         <button type="button" class="switch-btn" data-view="lcq">Qualif LCQ</button>
         <button type="button" class="switch-btn" data-view="top16">Top 16 Bracket</button>
+        <button type="button" class="switch-btn" data-view="sponsors">Annonceurs</button>
       </div>
     </div>
 
@@ -746,6 +844,14 @@
       <div id="bracketBody"><div class="loading-state">Chargement du tableau…</div></div>
     </div>
 
+    <div class="sponsor-card hidden" id="sponsorCard">
+      <div class="switch sponsor-mode-switch" id="sponsorModeSwitch">
+        <button type="button" class="switch-btn active" data-mode="qualif">Qualification</button>
+        <button type="button" class="switch-btn" data-mode="battle">Battle</button>
+      </div>
+      <div id="sponsorBody"><div class="loading-state">Chargement des données…</div></div>
+    </div>
+
     <footer>
       <span id="footerSource">Source : feuilles « Qualifs » &amp; « scoring » — Google Sheets</span>
       <span>Actualisation automatique toutes les 3 secondes</span>
@@ -759,10 +865,11 @@
     proam: { label: 'Pro-Am', eyebrow: 'PRO-AM', sheetId: '1XlKbpz2R4B4bj1GJLLFrqDqOWuwdHnzgq84xPD8B6Ac' }
   };
   var VIEWS = {
-    quali:   { label: 'Qualification Rank' },
-    scoring: { label: 'Qualification Sheet' },
-    lcq:     { label: 'Qualif LCQ' },
-    top16:   { label: 'Top 16 Bracket' }
+    quali:    { label: 'Qualification Rank' },
+    scoring:  { label: 'Qualification Sheet' },
+    lcq:      { label: 'Qualif LCQ' },
+    top16:    { label: 'Top 16 Bracket' },
+    sponsors: { label: 'Annonceurs' }
   };
   var POLL_MS = 3000;
   var FETCH_TIMEOUT_MS = 9000;
@@ -799,6 +906,10 @@
   var prevOnTrack = null;   // dernier pilote affiché, pour le flash au changement
   var battleInfo = null;    // {bracket, d1, d2} — battle Top16 en cours, ou false si aucune
   var prevBattle = null;    // dernière battle affichée, pour le flash au changement
+  var statsData = null;     // [{name, num, podiums, battles, wins, winPct, manufacturer, car, power, classe, champ}]
+  var statsByNum = {};      // Map<num, statsRow>
+  var sponsorsByNum = null; // Map<num, [sponsor, ...]> — feuille "site"
+  var currentSponsorMode = 'qualif'; // 'qualif' | 'battle' — vue "Annonceurs"
   var jsonpSeq = 0;
 
   function cellVal(cell){
@@ -932,6 +1043,120 @@
       bracket: String(cellVal(r0[0]) || '').trim(),
       d1: d1,
       d2: d2
+    };
+  }
+
+  // Sheet "dmcc info live", onglet "Stats" — une ligne par pilote, statistiques de carrière.
+  // Colonnes : Driver, Numero, Podiums, Overall Battles, Overall Battle Wins, Battle Win %,
+  // Manufacture, Cars, Power, classe, photo, [championnat] (12e colonne optionnelle).
+  function parseStatsData(resp){
+    if (!resp || resp.status !== 'ok' || !resp.table) return [];
+    var rows = resp.table.rows || [];
+    var out = [];
+    for (var i = 0; i < rows.length; i++){
+      var c = (rows[i] && rows[i].c) || [];
+      var name = cellVal(c[0]);
+      if (!String(name).trim()) continue;
+      out.push({
+        name:         String(name).trim(),
+        num:          String(cellVal(c[1]) || '').trim(),
+        podiums:      String(cellVal(c[2]) || '').trim(),
+        battles:      String(cellVal(c[3]) || '').trim(),
+        wins:         String(cellVal(c[4]) || '').trim(),
+        winPct:       String(cellVal(c[5]) || '').trim(),
+        manufacturer: String(cellVal(c[6]) || '').trim(),
+        car:          String(cellVal(c[7]) || '').trim(),
+        power:        String(cellVal(c[8]) || '').trim(),
+        classe:       String(cellVal(c[9]) || '').trim(),
+        champ:        String(cellVal(c[11]) || '').trim()
+      });
+    }
+    return out;
+  }
+
+  function buildStatsByNum(rows){
+    var map = {};
+    for (var i = 0; i < rows.length; i++){
+      if (rows[i].num) map[rows[i].num] = rows[i];
+    }
+    return map;
+  }
+
+  // Sheet "dmcc info live", onglet "site" — commanditaires par numéro de pilote.
+  // Colonnes : post_title, driver_name, nationality, car_photo, profile_picture,
+  // class, number, car_model, power, sponsor (liste séparée par des sauts de ligne).
+  function parseSiteSponsors(resp){
+    if (!resp || resp.status !== 'ok' || !resp.table) return {};
+    var rows = resp.table.rows || [];
+    var map = {};
+    for (var i = 0; i < rows.length; i++){
+      var c = (rows[i] && rows[i].c) || [];
+      var num = String(cellVal(c[6]) || '').trim();
+      if (!num) continue;
+      var raw = cellVal(c[9]);
+      var list = String(raw || '').split(/\r?\n/).map(function(s){ return s.trim(); })
+        .filter(function(s){ return s && s !== '-'; });
+      map[num] = list;
+    }
+    return map;
+  }
+
+  // Normalisation pour le matching de noms (accents, casse, ponctuation) — la feuille
+  // "battle" ne contient que des noms (pas de numéro), donc on doit les rapprocher des
+  // noms de la feuille "Stats" du mieux possible.
+  function normName(s){
+    return String(s || '')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/['".]/g, '')
+      .replace(/-/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function findStatsByName(name){
+    var n = normName(name);
+    if (!n || !statsData) return null;
+    for (var i = 0; i < statsData.length; i++){
+      if (normName(statsData[i].name) === n) return statsData[i];
+    }
+    var parts = n.split(' ');
+    var surname = parts[parts.length - 1];
+    var initial = parts[0] ? parts[0][0] : '';
+    for (var j = 0; j < statsData.length; j++){
+      var rparts = normName(statsData[j].name).split(' ');
+      var rsurname = rparts[rparts.length - 1];
+      if (rsurname === surname && rparts[0] && rparts[0][0] === initial) return statsData[j];
+    }
+    if (surname.length > 2){
+      for (var k = 0; k < statsData.length; k++){
+        if (normName(statsData[k].name).indexOf(surname) !== -1) return statsData[k];
+      }
+    }
+    return null;
+  }
+
+  // Assemble le profil complet (stats + commanditaires) d'un pilote pour la vue "Annonceurs".
+  // num connu (mode Qualif, exact) ou seulement un nom (mode Battle, matching approximatif).
+  function buildDriverProfile(num, name, extra){
+    extra = extra || {};
+    var stats = (num && statsByNum[num]) || findStatsByName(name);
+    var resolvedNum = (stats && stats.num) || num || '';
+    var sponsors = (sponsorsByNum && resolvedNum && sponsorsByNum[resolvedNum]) || [];
+    return {
+      name: name,
+      num: resolvedNum,
+      classe: (stats && stats.classe) || extra.classe || '',
+      champ: extra.champ || (stats && stats.champ) || '',
+      run: extra.run || '',
+      podiums: stats ? stats.podiums : '',
+      battles: stats ? stats.battles : '',
+      wins: stats ? stats.wins : '',
+      winPct: stats ? stats.winPct : '',
+      manufacturer: stats ? stats.manufacturer : '',
+      car: stats ? stats.car : '',
+      power: stats ? stats.power : '',
+      sponsors: sponsors
     };
   }
 
@@ -1259,17 +1484,88 @@
     prevBattle = battleInfo;
   }
 
+  function driverProfileHtml(p){
+    var html = '<div class="driver-box">';
+    html += '<div class="driver-box-head">';
+    if (p.num) html += '<span class="ontrack-num">#' + escapeHtml(p.num) + '</span>';
+    html += '<span class="ontrack-name">' + escapeHtml(p.name) + '</span>';
+    if (p.classe) html += '<span class="ontrack-class">' + escapeHtml(p.classe.toUpperCase()) + '</span>';
+    html += '</div>';
+
+    var meta = [];
+    if (p.champ) meta.push('Championnat : <strong>' + escapeHtml(ordinalFr(p.champ)) + '</strong>');
+    if (p.run) meta.push('Run ' + escapeHtml(p.run));
+    if (meta.length) html += '<div class="ontrack-champ">' + meta.join(' &nbsp;·&nbsp; ') + '</div>';
+
+    var stats = [];
+    stats.push('Podiums : <strong>' + escapeHtml(p.podiums || '—') + '</strong>');
+    stats.push('Battles : <strong>' + escapeHtml(p.battles || '—') + '</strong>');
+    stats.push('Victoires : <strong>' + escapeHtml(p.wins || '—') + '</strong>');
+    stats.push('Win % : <strong>' + escapeHtml(p.winPct || '—') + '</strong>');
+    var vehicule = [p.manufacturer, p.car].filter(function(x){ return x; }).join(' ');
+    if (vehicule) stats.push('Véhicule : <strong>' + escapeHtml(vehicule) + '</strong>');
+    if (p.power) stats.push('Puissance : <strong>' + escapeHtml(p.power) + ' hp</strong>');
+    html += '<div class="driver-box-stats">' + stats.join(' &nbsp;·&nbsp; ') + '</div>';
+
+    html += '<div class="sponsor-list-title">Commanditaires</div>';
+    if (p.sponsors && p.sponsors.length){
+      html += '<div class="sponsor-tags">' + p.sponsors.map(function(s){
+        return '<span class="sponsor-tag">' + escapeHtml(s) + '</span>';
+      }).join('') + '</div>';
+    } else {
+      html += '<div class="sponsor-tags"><span class="sponsor-tag" style="opacity:.55">Aucun commanditaire trouvé</span></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderSponsorCard(){
+    var body = document.getElementById('sponsorBody');
+    if (statsData === null || sponsorsByNum === null){
+      body.innerHTML = '<div class="loading-state">Chargement des données…</div>';
+      return;
+    }
+    if (currentSponsorMode === 'battle'){
+      if (!battleInfo){
+        body.innerHTML = '<div class="sponsor-empty">Aucune battle en cours pour le moment.</div>';
+        return;
+      }
+      var p1 = buildDriverProfile('', battleInfo.d1, {});
+      var p2 = buildDriverProfile('', battleInfo.d2, {});
+      body.innerHTML = '<div class="battle-profiles">' +
+        driverProfileHtml(p1) +
+        '<div class="vs-divider">VS</div>' +
+        driverProfileHtml(p2) +
+        '</div>';
+    } else {
+      if (!onTrack){
+        body.innerHTML = '<div class="sponsor-empty">Aucun pilote en piste pour le moment.</div>';
+        return;
+      }
+      var p = buildDriverProfile(onTrack.num, onTrack.name, { classe: onTrack.classe, champ: onTrack.champ, run: onTrack.run });
+      body.innerHTML = driverProfileHtml(p);
+    }
+  }
+
   function render(){
     renderOnTrackBanner();
     renderBattleBanner();
     var tableCard = document.getElementById('tableCard');
     var bracketCard = document.getElementById('bracketCard');
+    var sponsorCard = document.getElementById('sponsorCard');
     if (currentViewId === 'top16'){
       tableCard.classList.add('hidden');
+      sponsorCard.classList.add('hidden');
       bracketCard.classList.remove('hidden');
       renderTop16();
+    } else if (currentViewId === 'sponsors'){
+      tableCard.classList.add('hidden');
+      bracketCard.classList.add('hidden');
+      sponsorCard.classList.remove('hidden');
+      renderSponsorCard();
     } else {
       bracketCard.classList.add('hidden');
+      sponsorCard.classList.add('hidden');
       tableCard.classList.remove('hidden');
       if (currentViewId === 'scoring') renderScoring();
       else if (currentViewId === 'lcq') renderLcq();
@@ -1535,6 +1831,17 @@
         battleInfo = parseBattle(resp);
       }).catch(function(){
         if (battleInfo === null) battleInfo = false;
+      }),
+      jsonpFetch(LIVE_SHEET_ID, 'Stats', 1).then(function(resp){
+        statsData = parseStatsData(resp);
+        statsByNum = buildStatsByNum(statsData);
+      }).catch(function(){
+        if (statsData === null){ statsData = []; statsByNum = {}; }
+      }),
+      jsonpFetch(LIVE_SHEET_ID, 'site', 1).then(function(resp){
+        sponsorsByNum = parseSiteSponsors(resp);
+      }).catch(function(){
+        if (sponsorsByNum === null) sponsorsByNum = {};
       })
     ]).then(function(){
       if (gen !== activeGen) return;
@@ -1570,9 +1877,10 @@
     document.getElementById('contextLabel').innerHTML =
       '<strong>' + CLASSES[currentClassId].eyebrow + '</strong> · ' + VIEWS[currentViewId].label;
     document.getElementById('footerSource').textContent =
-      (currentViewId === 'scoring') ? 'Source : feuille « scoring » — Google Sheets' :
-      (currentViewId === 'top16')   ? 'Source : feuille « Top16 » — Google Sheets' :
-      (currentViewId === 'lcq')     ? 'Source : feuille « Ordre qualif run #2 » — Google Sheets' :
+      (currentViewId === 'scoring')  ? 'Source : feuille « scoring » — Google Sheets' :
+      (currentViewId === 'top16')    ? 'Source : feuille « Top16 » — Google Sheets' :
+      (currentViewId === 'lcq')      ? 'Source : feuille « Ordre qualif run #2 » — Google Sheets' :
+      (currentViewId === 'sponsors') ? 'Source : feuilles « qualifs », « battle », « Stats » & « site » — Google Sheets' :
       'Source : feuilles « Qualifs » & « scoring » — Google Sheets';
     document.getElementById('classSelect').value = currentClassId;
     document.getElementById('viewSelect').value = currentViewId;
@@ -1632,6 +1940,15 @@
     var btn = e.target.closest('.switch-btn');
     if (!btn) return;
     switchView(btn.getAttribute('data-view'));
+  });
+
+  document.getElementById('sponsorModeSwitch').addEventListener('click', function(e){
+    var btn = e.target.closest('.switch-btn');
+    if (!btn) return;
+    currentSponsorMode = btn.getAttribute('data-mode');
+    var btns = document.querySelectorAll('#sponsorModeSwitch .switch-btn');
+    for (var i = 0; i < btns.length; i++){ btns[i].classList.toggle('active', btns[i] === btn); }
+    renderSponsorCard();
   });
 
   window.addEventListener('hashchange', function(){
