@@ -783,28 +783,11 @@
     padding: 20px;
   }
 
-  .staff-grid{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    align-items: start;
-  }
+  .staff-mode-switch{ margin-bottom: 18px; }
+  .staff-mode-switch .switch-btn.active{ background: var(--accent); color: #fff; }
 
-  .staff-col-title{
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 700;
-    font-size: 13px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin: 0 0 10px;
-  }
-
-  table.staff-table{ min-width: 0; }
-
-  @media (max-width: 760px){
-    .staff-grid{ grid-template-columns: 1fr; gap: 28px; }
-  }
+  /* Table Staff Grid entièrement dépliée — pas de scroll interne, la page défile normalement. */
+  .staff-table-scroll{ max-height: none; overflow-y: visible; }
 
   @media (max-width: 640px){
     .staff-card{ padding: 16px; }
@@ -889,41 +872,26 @@
     </div>
 
     <div class="staff-card hidden" id="staffCard">
-      <div class="staff-grid">
-        <div class="staff-col">
-          <div class="staff-col-title">Ordre de qualification — Run 1</div>
-          <div class="table-scroll">
-            <table class="staff-table">
-              <thead>
-                <tr>
-                  <th class="col-pos" style="width:70px">Ordre</th>
-                  <th style="width:60px">#</th>
-                  <th class="col-name">Pilote</th>
-                </tr>
-              </thead>
-              <tbody id="staffRun1Body">
-                <tr><td colspan="3"><div class="loading-state">Chargement…</div></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="staff-col">
-          <div class="staff-col-title">Ordre LCQ</div>
-          <div class="table-scroll">
-            <table class="staff-table">
-              <thead>
-                <tr>
-                  <th class="col-pos" style="width:70px">Ordre</th>
-                  <th style="width:60px">#</th>
-                  <th class="col-name">Pilote</th>
-                </tr>
-              </thead>
-              <tbody id="staffLcqBody">
-                <tr><td colspan="3"><div class="loading-state">Chargement…</div></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div class="switch staff-mode-switch" id="staffModeSwitch">
+        <button type="button" class="switch-btn active" data-staffmode="run1">Ordre Qualif</button>
+        <button type="button" class="switch-btn" data-staffmode="lcq">Ordre LCQ</button>
+      </div>
+      <div class="table-scroll staff-table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-pos" style="width:70px">Ordre</th>
+              <th style="width:60px">#</th>
+              <th class="col-name">Pilote</th>
+              <th class="col-run run-divider">Run 1</th>
+              <th class="col-run">Run 2</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody id="staffBody">
+            <tr><td colspan="6"><div class="loading-state">Chargement…</div></td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -989,6 +957,7 @@
   var statsByNum = buildStatsIndex(STATS_DATA);
   var sponsorsByNum = null; // Map<num, [sponsor, ...]> — feuille "site"
   var currentSponsorMode = 'qualif'; // 'qualif' | 'battle' — vue "Annonceurs"
+  var currentStaffMode = 'run1';     // 'run1' | 'lcq' — vue "Staff Grid"
   var jsonpSeq = 0;
 
   function cellVal(cell){
@@ -1658,34 +1627,65 @@
   }
 
   // Vue "Staff Grid" — juste l'ordre de passage (run 1 & LCQ), sans score ni position.
+  // Vue "Staff Grid" — ordre de passage (run 1 ou LCQ, au choix) + run 1/run 2/score
+  // pour que le staff connaisse le pointage sans avoir à consulter la feuille complète.
   function renderStaff(){
-    var run1Body = document.getElementById('staffRun1Body');
-    var lcqBody = document.getElementById('staffLcqBody');
+    var body = document.getElementById('staffBody');
 
-    if (scoringRows === null){
-      run1Body.innerHTML = '<tr><td colspan="3"><div class="loading-state">Chargement…</div></td></tr>';
-    } else if (!scoringRows.length){
-      run1Body.innerHTML = '<tr><td colspan="3"><div class="empty-state">Aucun pilote trouvé.</div></td></tr>';
-    } else {
-      var html1 = '';
-      for (var i = 0; i < scoringRows.length; i++){
-        var r = scoringRows[i];
-        html1 += '<tr class="row"><td class="col-pos">' + (i + 1) + '</td><td>' + escapeHtml(r.num) + '</td><td class="col-name">' + escapeHtml(r.name) + '</td></tr>';
-      }
-      run1Body.innerHTML = html1;
+    var scoreByNum = {};
+    if (qualifsRows){
+      for (var q = 0; q < qualifsRows.length; q++){ scoreByNum[qualifsRows[q].num] = qualifsRows[q].score; }
     }
 
-    if (lcqRows === null){
-      lcqBody.innerHTML = '<tr><td colspan="3"><div class="loading-state">Chargement…</div></td></tr>';
-    } else if (!lcqRows.length){
-      lcqBody.innerHTML = '<tr><td colspan="3"><div class="empty-state">Aucun pilote trouvé.</div></td></tr>';
-    } else {
-      var html2 = '';
+    if (currentStaffMode === 'lcq'){
+      if (lcqRows === null){
+        body.innerHTML = '<tr><td colspan="6"><div class="loading-state">Chargement…</div></td></tr>';
+        return;
+      }
+      if (!lcqRows.length){
+        body.innerHTML = '<tr><td colspan="6"><div class="empty-state">Aucun pilote trouvé.</div></td></tr>';
+        return;
+      }
+      var scoringByNum = {};
+      if (scoringRows){
+        for (var s = 0; s < scoringRows.length; s++){ scoringByNum[scoringRows[s].num] = scoringRows[s]; }
+      }
+      var htmlLcq = '';
       for (var j = 0; j < lcqRows.length; j++){
         var l = lcqRows[j];
-        html2 += '<tr class="row"><td class="col-pos">' + escapeHtml(l.ordre) + '</td><td>' + escapeHtml(l.num) + '</td><td class="col-name">' + escapeHtml(l.name) + '</td></tr>';
+        var sc = scoringByNum[l.num] || {};
+        htmlLcq += '<tr class="row">' +
+          '<td class="col-pos">' + escapeHtml(l.ordre) + '</td>' +
+          '<td>' + escapeHtml(l.num) + '</td>' +
+          '<td class="col-name">' + escapeHtml(l.name) + '</td>' +
+          '<td class="col-run run-divider">' + escapeHtml(sc.run1 || '—') + '</td>' +
+          '<td class="col-run">' + escapeHtml(sc.run2 || '—') + '</td>' +
+          '<td class="col-score">' + escapeHtml(scoreByNum[l.num] || '—') + '</td>' +
+        '</tr>';
       }
-      lcqBody.innerHTML = html2;
+      body.innerHTML = htmlLcq;
+    } else {
+      if (scoringRows === null){
+        body.innerHTML = '<tr><td colspan="6"><div class="loading-state">Chargement…</div></td></tr>';
+        return;
+      }
+      if (!scoringRows.length){
+        body.innerHTML = '<tr><td colspan="6"><div class="empty-state">Aucun pilote trouvé.</div></td></tr>';
+        return;
+      }
+      var htmlRun1 = '';
+      for (var i = 0; i < scoringRows.length; i++){
+        var r = scoringRows[i];
+        htmlRun1 += '<tr class="row">' +
+          '<td class="col-pos">' + (i + 1) + '</td>' +
+          '<td>' + escapeHtml(r.num) + '</td>' +
+          '<td class="col-name">' + escapeHtml(r.name) + '</td>' +
+          '<td class="col-run run-divider">' + escapeHtml(r.run1 || '—') + '</td>' +
+          '<td class="col-run">' + escapeHtml(r.run2 || '—') + '</td>' +
+          '<td class="col-score">' + escapeHtml(scoreByNum[r.num] || '—') + '</td>' +
+        '</tr>';
+      }
+      body.innerHTML = htmlRun1;
     }
   }
 
@@ -1991,7 +1991,7 @@
       (currentViewId === 'top16')    ? 'Source : feuille « Top16 » — Google Sheets' :
       (currentViewId === 'lcq')      ? 'Source : feuille « Ordre qualif run #2 » — Google Sheets' :
       (currentViewId === 'sponsors') ? 'Source : feuilles « qualifs » & « battle » (Google Sheets) + stats internes' :
-      (currentViewId === 'staff')    ? 'Source : feuilles « scoring » & « Ordre qualif run #2 » — Google Sheets' :
+      (currentViewId === 'staff')    ? 'Source : feuilles « Qualifs », « scoring » & « Ordre qualif run #2 » — Google Sheets' :
       'Source : feuilles « Qualifs » & « scoring » — Google Sheets';
     document.getElementById('classSelect').value = currentClassId;
     document.getElementById('viewSelect').value = currentViewId;
@@ -2060,6 +2060,15 @@
     var btns = document.querySelectorAll('#sponsorModeSwitch .switch-btn');
     for (var i = 0; i < btns.length; i++){ btns[i].classList.toggle('active', btns[i] === btn); }
     renderSponsorCard();
+  });
+
+  document.getElementById('staffModeSwitch').addEventListener('click', function(e){
+    var btn = e.target.closest('.switch-btn');
+    if (!btn) return;
+    currentStaffMode = btn.getAttribute('data-staffmode');
+    var btns = document.querySelectorAll('#staffModeSwitch .switch-btn');
+    for (var i = 0; i < btns.length; i++){ btns[i].classList.toggle('active', btns[i] === btn); }
+    renderStaff();
   });
 
   window.addEventListener('hashchange', function(){
