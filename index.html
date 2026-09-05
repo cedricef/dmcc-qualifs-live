@@ -83,6 +83,40 @@
     font-size: 16px;
   }
 
+  /* Dropdowns de remplacement pour mobile (mêmes couleurs/police que les pilules) */
+  .nav-select-row{
+    display: none;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .nav-select{
+    flex: 1 1 0;
+    min-width: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text);
+    background-color: var(--surface);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%239aa1ac' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 10px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 10px 32px 10px 16px;
+    cursor: pointer;
+  }
+
+  .nav-select:focus{ outline: none; border-color: var(--accent); }
+
+  #classSelect{ color: var(--accent); font-weight: 800; }
+
   .context-label{
     font-family: 'Rajdhani', sans-serif;
     font-weight: 600;
@@ -353,6 +387,21 @@
     td.col-name{ padding-left: 12px; }
     .switch{ flex-wrap: wrap; justify-content: center; }
     .switch-view .switch-btn{ padding: 7px 12px; font-size: 11px; }
+
+    /* Boutons Pro/Pro-Am + onglets -> dropdowns, pour libérer de la hauteur */
+    .nav-bar{ display: none; }
+    .nav-select-row{ display: flex; }
+
+    /* Signal "en direct" -> juste un point de couleur, sans texte ni pilule */
+    .live-pill, .live-pill.offline{
+      padding: 0;
+      background: transparent;
+      border: none;
+      gap: 0;
+    }
+    .live-pill{ color: #34c759; }
+    .live-pill #liveLabel{ display: none; }
+    .live-dot{ width: 12px; height: 12px; }
   }
 
   .hidden{ display: none !important; }
@@ -652,6 +701,11 @@
         <button type="button" class="switch-btn" data-view="lcq">Qualif LCQ</button>
         <button type="button" class="switch-btn" data-view="top16">Top 16 Bracket</button>
       </div>
+    </div>
+
+    <div class="nav-select-row" id="navSelectRow">
+      <select class="nav-select" id="classSelect" aria-label="Classe"></select>
+      <select class="nav-select" id="viewSelect" aria-label="Vue"></select>
     </div>
 
     <div class="ontrack-banner hidden" id="ontrackBanner">
@@ -1520,6 +1574,22 @@
       (currentViewId === 'top16')   ? 'Source : feuille « Top16 » — Google Sheets' :
       (currentViewId === 'lcq')     ? 'Source : feuille « Ordre qualif run #2 » — Google Sheets' :
       'Source : feuilles « Qualifs » & « scoring » — Google Sheets';
+    document.getElementById('classSelect').value = currentClassId;
+    document.getElementById('viewSelect').value = currentViewId;
+  }
+
+  // Dropdowns mobile (mêmes options que les boutons, pour libérer de la hauteur en tête de page)
+  function initNavSelects(){
+    var classSelect = document.getElementById('classSelect');
+    var viewSelect = document.getElementById('viewSelect');
+    var chtml = '';
+    for (var cid in CLASSES){ chtml += '<option value="' + cid + '">' + CLASSES[cid].label + '</option>'; }
+    classSelect.innerHTML = chtml;
+    var vhtml = '';
+    for (var vid in VIEWS){ vhtml += '<option value="' + vid + '">' + VIEWS[vid].label + '</option>'; }
+    viewSelect.innerHTML = vhtml;
+    classSelect.addEventListener('change', function(){ switchClass(this.value); });
+    viewSelect.addEventListener('change', function(){ switchView(this.value); });
   }
 
   function switchClass(id){
@@ -1570,6 +1640,7 @@
     if (parsed.view !== currentViewId) switchView(parsed.view);
   });
 
+  initNavSelects();
   updateSwitchUI();
   loop();
 })();
