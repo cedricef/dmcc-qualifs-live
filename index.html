@@ -533,6 +533,7 @@
       <div class="switch switch-view" id="viewSwitch">
         <button type="button" class="switch-btn" data-view="quali">Qualification Rank</button>
         <button type="button" class="switch-btn" data-view="scoring">Qualification Sheet</button>
+        <button type="button" class="switch-btn" data-view="lcq">Qualif LCQ</button>
         <button type="button" class="switch-btn" data-view="top16">Top 16 Bracket</button>
       </div>
     </div>
@@ -569,6 +570,7 @@
   var VIEWS = {
     quali:   { label: 'Qualification Rank' },
     scoring: { label: 'Qualification Sheet' },
+    lcq:     { label: 'Qualif LCQ' },
     top16:   { label: 'Top 16 Bracket' }
   };
   var POLL_MS = 3000;
@@ -595,6 +597,8 @@
   var prevScoring = {};     // num -> last rendered fields (Scoring view), for flash-on-change
   var top16Rows = null;     // parsed bracket structure, or false if the Top16 tab is unavailable
   var prevTop16 = {};       // cell key -> last rendered signature, for flash-on-change
+  var lcqRows = null;       // [{ordre, num, name}] — feuille "Ordre qualif run #2"
+  var prevLcq = {};         // num -> last rendered fields (Qualif LCQ view), for flash-on-change
   var jsonpSeq = 0;
 
   function cellVal(cell){
@@ -667,6 +671,24 @@
         style: String(cellVal(c[5])).trim(),
         angle: String(cellVal(c[6])).trim(),
         line:  String(cellVal(c[7])).trim()
+      });
+    }
+    return out;
+  }
+
+  // Feuille "Ordre qualif run #2" — ordre de passage pour le LCQ : colonnes A,B,C
+  function parseLcq(resp){
+    if (!resp || resp.status !== 'ok' || !resp.table) return [];
+    var rows = resp.table.rows || [];
+    var out = [];
+    for (var i = 0; i < rows.length; i++){
+      var c = (rows[i] && rows[i].c) || [];
+      var name = cellVal(c[2]);
+      if (!String(name).trim()) continue;
+      out.push({
+        ordre: String(cellVal(c[0])).trim(),
+        num:   String(cellVal(c[1])).trim(),
+        name:  String(name).trim()
       });
     }
     return out;
@@ -967,6 +989,7 @@
       bracketCard.classList.add('hidden');
       tableCard.classList.remove('hidden');
       if (currentViewId === 'scoring') renderScoring();
+      else if (currentViewId === 'lcq') renderLcq();
       else renderQuali();
     }
   }
@@ -1107,6 +1130,54 @@
     prevScoring = nextPrev;
   }
 
+  // Vue "Qualif LCQ" — ordre de passage pour la reprise (feuille "Ordre qualif run #2")
+  function renderLcq(){
+    var thead = document.getElementById('thead');
+    var tbody = document.getElementById('tbody');
+
+    thead.innerHTML =
+      '<tr>' +
+        '<th class="col-pos">Ordre</th>' +
+        '<th>#</th>' +
+        '<th class="col-name">Pilote</th>' +
+      '</tr>';
+
+    if (lcqRows === null){
+      tbody.innerHTML = '<tr><td colspan="3"><div class="loading-state">Chargement des données…</div></td></tr>';
+      return;
+    }
+    if (!lcqRows.length){
+      tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state">Aucun pilote trouvé pour le moment.</div></td></tr>';
+      return;
+    }
+
+    var keys = ['ordre', 'num', 'name'];
+    var html = '';
+    var nextPrev = {};
+
+    for (var i = 0; i < lcqRows.length; i++){
+      var f = lcqRows[i];
+      nextPrev[f.num] = f;
+      var prev = prevLcq[f.num];
+
+      html += '<tr class="row">';
+      for (var k = 0; k < keys.length; k++){
+        var key = keys[k];
+        var val = f[key];
+        var changed = prev && String(prev[key]) !== String(val);
+        var cls = '';
+        if (key === 'name') cls = 'col-name';
+        else if (key === 'ordre') cls = 'col-pos';
+        if (changed) cls = (cls ? cls + ' ' : '') + 'flash';
+        html += '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + escapeHtml(val) + '</td>';
+      }
+      html += '</tr>';
+    }
+
+    tbody.innerHTML = html;
+    prevLcq = nextPrev;
+  }
+
   function escapeHtml(v){
     return String(v)
       .replace(/&/g, '&amp;')
@@ -1129,6 +1200,11 @@
         if (gen === activeGen) top16Rows = parseTop16(resp);
       }).catch(function(){
         if (gen === activeGen && top16Rows === null) top16Rows = false;
+      }),
+      jsonpFetch(sheetId, 'Ordre qualif run #2').then(function(resp){
+        if (gen === activeGen) lcqRows = parseLcq(resp);
+      }).catch(function(){
+        if (gen === activeGen && lcqRows === null) lcqRows = [];
       })
     ]).then(function(){
       if (gen !== activeGen) return;
@@ -1166,6 +1242,7 @@
     document.getElementById('footerSource').textContent =
       (currentViewId === 'scoring') ? 'Source : feuille « scoring » — Google Sheets' :
       (currentViewId === 'top16')   ? 'Source : feuille « Top16 » — Google Sheets' :
+      (currentViewId === 'lcq')     ? 'Source : feuille « Ordre qualif run #2 » — Google Sheets' :
       'Source : feuilles « Qualifs » & « scoring » — Google Sheets';
   }
 
@@ -1178,9 +1255,11 @@
     scoringRows = null;
     scoringMap = null;
     top16Rows = null;
+    lcqRows = null;
     prevQuali = {};
     prevScoring = {};
     prevTop16 = {};
+    prevLcq = {};
     if (pollTimer){ clearTimeout(pollTimer); pollTimer = null; }
     updateSwitchUI();
     render();
